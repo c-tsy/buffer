@@ -1,6 +1,6 @@
 {
   "name": "@ctsy/buffer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "dist/index.js",
   "files": [
     "README.md",
@@ -14,9 +14,13 @@
     "prepublish": "tsc"
   },
   "devDependencies": {
-    "@types/node": "*"
+    "@types/get-value": "^3.0.1",
+    "@types/node": "*",
+    "@types/set-value": "^2.0.0"
   },
   "dependencies": {
-    "buffer": "^5.4.3"
+    "buffer": "^5.4.3",
+    "get-value": "^3.0.1",
+    "set-value": "^3.0.2"
   }
 }
