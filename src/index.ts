@@ -237,8 +237,13 @@ export function buffer_encode(obj: any, conf: Config[]) {
                 bufs.push(t.buf);
                 break;
             case DataType.array:
-                t = buffer_encode(obj[x.Code], x.Config || [])
-                bufs.push(t.buf);
+                if (obj[x.Code] instanceof Array) {
+                    for (let o of obj[x.Code]) {
+                        t = buffer_encode(o, x.Config || [])
+                        bufs.push(t.buf);
+                        i += t.buf.length;
+                    }
+                }
                 break;
             case DataType.bit:
                 buf = Buffer.alloc(x.Len);
