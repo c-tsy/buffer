@@ -4,8 +4,8 @@
   "main": "dist/index.js",
   "files": [
     "README.md",
-    "dist/**/*.js",
-    "dist/**/*.ts"
+    "dist/index.js",
+    "dist/index.d.ts"
   ],
   "repository": "https://github.com/c-tsy/buffer",
   "author": "castleiMac <castle@tansuyun.cn>",
