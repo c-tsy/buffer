@@ -187,7 +187,8 @@ export enum DataType {
     bit = 'bit',
     timestamp = 'timestamp',
     object = 'object',
-    array = 'array'
+    array = 'array',
+    buffer = 'buffer'
 }
 export class Config {
     Name: string = "";
@@ -197,6 +198,10 @@ export class Config {
     Memo?: string = "";
     Unit?: number = 1;
     ArrayLen?: number | string = 0;
+    Buffer?: {
+        Code?: string,
+        Len?: number
+    } = {}
     Config?: Config[] = []
     Offset?: number = 0;
     Map?: { [index: string]: any } = {}
@@ -232,15 +237,26 @@ export function buffer_encode(obj: any, conf: Config[]) {
         let v: any;
         let t: { [index: string]: any } = {}
         switch (x.Type) {
+            case DataType.buffer:
+                if (obj[x.Code] instanceof Buffer) {
+                    bufs.push(obj[x.Code]);
+                } else if ('string' == typeof obj[x.Code]) {
+                    bufs.push(Buffer.from(obj[x.Code], 'hex'))
+                } else {
+                    throw new Error('Error Buffer Value')
+                }
+                break;
             case DataType.object:
                 t = buffer_encode(obj[x.Code], x.Config || [])
                 bufs.push(t.buf);
+                explain.push(...t.explain)
                 break;
             case DataType.array:
                 if (obj[x.Code] instanceof Array) {
                     for (let o of obj[x.Code]) {
                         t = buffer_encode(o, x.Config || [])
                         bufs.push(t.buf);
+                        explain.push(...t.explain);
                         i += t.buf.length;
                     }
                 }
@@ -318,6 +334,15 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]) {
         let v: any;
         let t: { [index: string]: any } = {}
         switch (x.Type) {
+            case DataType.buffer:
+                if (x.Buffer) {
+                    let len = x.Buffer.Len || obj[x.Buffer.Code || ''] || x.Len;
+                    if (len > 0) {
+                        obj[x.Code] = buf.slice(i, len);
+                    }
+                    x.Len = len;
+                }
+                break;
             case DataType.object:
                 obj[x.Code] = buffer_decode(buf.slice(i, x.Len), t, x.Config || [])
                 break;
