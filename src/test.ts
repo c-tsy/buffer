@@ -309,11 +309,11 @@ import { DataType, buffer_decode, hex2buffer, buffer_encode, buffer2hex } from "
             Config: []
         },
     ];
-    let t = {};
-    let rs = buffer_decode(hex2buffer(hex), t, config);
-    let encode_rs = buffer_encode(rs.obj, config);
-    // debugger
-    console.log(rs, t)
-    console.log(buffer2hex(hex2buffer(hex)))
-    console.log(buffer2hex(encode_rs.buf))
+    // let t = {};
+    // let rs = buffer_decode(hex2buffer(hex), t, config);
+    // let encode_rs = buffer_encode(rs.obj, config);
+    // // debugger
+    // console.log(rs, t)
+    // console.log(buffer2hex(hex2buffer(hex)))
+    // console.log(buffer2hex(encode_rs.buf) == buffer2hex(hex2buffer(hex)))
 })()

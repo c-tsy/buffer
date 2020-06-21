@@ -140,12 +140,17 @@ export function bit_decode(buf: Buffer, len: number, offset: number = 0, bitlen:
     }
     o = o >> 1
     let rs = (u >> offset) & o;
-    // if (offset == 6) { debugger }
-    return map[rs] || rs;
+    return rs;
 }
 
-export function bit_encode() {
-
+export function bit_encode(val: number, offset: number = 0, bitlen: number = 1) {
+    let o = 0x00;
+    for (let i = 0; i < bitlen; i++) {
+        o = o | 0x01;
+        o = o << 1;
+    }
+    o = o >> 1
+    return (val & o) << offset;
 }
 
 const coder = {
@@ -236,15 +241,19 @@ export function buffer_encode(obj: any, conf: Config[]) {
                 bufs.push(t.buf);
                 break;
             case DataType.bit:
-                bufs.push(Buffer.alloc(x.Len))
-                // if (!x.Config) {
-                //     break;
-                // }
-                // let tbuf = buf.slice(i, i + x.Len);
-                // for (let o of x.Config) {
-                //     t[o.Code] = bit_decode(tbuf, x.Len, o.Offset || 0, o.Len, o.Map)
-                // }
-                // obj[x.Code] = t;
+                buf = Buffer.alloc(x.Len);
+                if (!x.Config) {
+                    bufs.push(buf);
+                    continue;
+                }
+                let tnumber = 0, offset = 0;
+                for (let o of x.Config) {
+                    //反向MAP
+                    tnumber |= bit_encode(obj[x.Code][o.Code] || 0, offset, o.Len || 0);
+                    offset += o.Len;
+                }
+                buf.writeUIntLE(tnumber, 0, x.Len)
+                bufs.push(buf);
                 break;
             case DataType.ascii:
                 buf = coder.ascii.encode(obj[x.Code] || '', x.Len)
@@ -329,7 +338,7 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]) {
                 break;
             case DataType.bit:
                 if (!x.Config) {
-                    break;
+                    continue;
                 }
                 let tbuf = buf.slice(i, i + x.Len), offset = 0;
                 for (let o of x.Config) {
