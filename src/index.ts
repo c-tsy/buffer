@@ -1,6 +1,10 @@
 import { Buffer } from 'buffer'
-import * as set from 'set-value'
+// import * as set from 'set-value'
 import get = require('get-value');
+import set = require('set-value');
+import { Buffer } from 'buffer';
+import { off } from 'process';
+import { debug } from 'console';
 exports.Buffer = Buffer;
 /**
  * hex转buffer
@@ -109,7 +113,7 @@ export function ascii_decode(buf: Buffer, len: number, offset: number = 0) {
  * @param date 
  */
 export function timestamp_encode(date: Date | string | number) {
-    return Math.floor(new Date(date).getTime() / 1000);
+    return Math.floor(new Date(date).getTime());
 }
 /**
  * 时间戳解码
@@ -120,7 +124,29 @@ export function timestamp_encode(date: Date | string | number) {
 export function timestamp_decode(buf: Buffer, len: number, offset: number) {
     return uint_decode(buf, len, offset);
 }
+/**
+ * 按位解码
+ * @param buf 
+ * @param len 
+ * @param offset 
+ * @param bitlen 
+ * @param map 
+ */
+export function bit_decode(buf: Buffer, len: number, offset: number = 0, bitlen: number = 1, map: { [index: string]: any } = {}) {
+    let o = 0x00, u = buf.readUIntLE(0, len);
+    for (let i = 0; i < bitlen; i++) {
+        o = o | 0x01;
+        o = o << 1;
+    }
+    o = o >> 1
+    let rs = (u >> offset) & o;
+    // if (offset == 6) { debugger }
+    return map[rs] || rs;
+}
 
+export function bit_encode() {
+
+}
 
 const coder = {
     ascii: {
@@ -138,6 +164,14 @@ const coder = {
     timestamp: {
         encode: timestamp_encode,
         decode: timestamp_decode
+    },
+    bit: {
+        encode: bit_encode,
+        decode: bit_decode,
+    },
+    buffer: {
+        // encode: buffer_encode,
+        // decode: buffer_decode,
     }
 }
 
@@ -155,10 +189,15 @@ export class Config {
     Code: string = "";
     Type: DataType = DataType.uint;
     Len: number = 0;
-    Memo: string = "";
-    Unit: number = 0;
-    ArrayLen: number | string = 0;
-    Config: Config[] = []
+    Memo?: string = "";
+    Unit?: number = 1;
+    ArrayLen?: number | string = 0;
+    Config?: Config[] = []
+    Offset?: number = 0;
+    Map?: { [index: string]: any } = {}
+    constructor(data?: Config) {
+
+    }
 }
 interface Explain {
     Start: number;
@@ -170,25 +209,103 @@ interface Explain {
     Code: string;
     Memo: string;
 }
-export function encode() { }
-export function decode(buf: Buffer, obj: any, conf: Config[]) {
+export function buffer_encode(obj: any, conf: Config[]) {
+    let i = 0;
+    let explain: Explain[] = [];
+    let bufs: Buffer[] = [], buf: Buffer;
+    for (let x of conf) {
+        let txt: Explain = {
+            Start: i,
+            End: i + x.Len,
+            Hex: '',
+            Value: '',
+            Unit: x.Unit || 1,
+            Name: x.Name,
+            Code: x.Code,
+            Memo: x.Memo || ''
+        };
+        let v: any;
+        let t: { [index: string]: any } = {}
+        switch (x.Type) {
+            case DataType.object:
+                t = buffer_encode(obj[x.Code], x.Config || [])
+                bufs.push(t.buf);
+                break;
+            case DataType.array:
+                t = buffer_encode(obj[x.Code], x.Config || [])
+                bufs.push(t.buf);
+                break;
+            case DataType.bit:
+                bufs.push(Buffer.alloc(x.Len))
+                // if (!x.Config) {
+                //     break;
+                // }
+                // let tbuf = buf.slice(i, i + x.Len);
+                // for (let o of x.Config) {
+                //     t[o.Code] = bit_decode(tbuf, x.Len, o.Offset || 0, o.Len, o.Map)
+                // }
+                // obj[x.Code] = t;
+                break;
+            case DataType.ascii:
+                buf = coder.ascii.encode(obj[x.Code] || '', x.Len)
+                txt.Value = obj[x.Code] || '';
+                bufs.push(buf);
+                break;
+            case DataType.timestamp:
+                v = obj[x.Code] || 0
+                buf = coder.uint.encode(coder.timestamp.encode(v), 4);
+                txt.Value = v;
+                bufs.push(buf);
+                break;
+            case DataType.uint:
+                v = (obj[x.Code] || 0) / (x.Unit || 1)
+                buf = coder.uint.encode(v, x.Len);
+                txt.Value = v;
+                bufs.push(buf);
+                break;
+            case DataType.int:
+                v = (obj[x.Code] || 0) / (x.Unit || 1)
+                buf = coder.int.encode(v, x.Len);
+                txt.Value = v;
+                bufs.push(buf);
+                break;
+        }
+        txt.Hex = buffer2hex(bufs[bufs.length - 1]);
+        explain.push(txt)
+        console.log([x.Name, obj[x.Code], txt.Hex].join('\t'))
+        i += x.Len;
+    }
+    return {
+        explain,
+        buf: Buffer.concat(bufs)
+    };
+}
+/**
+ * 解码
+ * @param buf 
+ * @param obj 
+ * @param conf 
+ */
+export function buffer_decode(buf: Buffer, obj: any, conf: Config[]) {
     let i = 0;
     let explain: Explain[] = [];
     for (let x of conf) {
+        // console.log(x.Code)
         let txt: Explain = {
             Start: i,
             End: i + x.Len,
             Hex: buffer2hex(buf.slice(i, i + x.Len)),
             Value: '',
-            Unit: x.Unit,
+            Unit: x.Unit || 1,
             Name: x.Name,
             Code: x.Code,
-            Memo: x.Memo
+            Memo: x.Memo || ''
         };
         let v: any;
+        let t: { [index: string]: any } = {}
         switch (x.Type) {
             case DataType.object:
-                obj[x.Code] = decode(buf.slice(i, x.Len),)
+                obj[x.Code] = buffer_decode(buf.slice(i, x.Len), t, x.Config || [])
                 break;
             case DataType.array:
                 if (obj[x.Code] instanceof Array) {
@@ -200,18 +317,26 @@ export function decode(buf: Buffer, obj: any, conf: Config[]) {
                 if ('string' == typeof x.ArrayLen) {
                     len = Number(obj[x.ArrayLen]);
                 } else {
-                    len = x.ArrayLen
+                    len = x.ArrayLen || 0
                 }
                 for (let o = 0; o < len; o++) {
-                    if (x.Config.length == 1) {
+                    if (x.Config && x.Config.length == 1) {
 
                     }
-                    obj[x.Code].push(decode(buf.slice(i, x.Len), get(obj, x.Code), x.Config))
+                    obj[x.Code].push(buffer_decode(buf.slice(i, x.Len), get(obj, x.Code), x.Config || []))
                     i += x.Len;
                 }
                 break;
             case DataType.bit:
-
+                if (!x.Config) {
+                    break;
+                }
+                let tbuf = buf.slice(i, i + x.Len), offset = 0;
+                for (let o of x.Config) {
+                    t[o.Code] = bit_decode(tbuf, x.Len, offset, o.Len, o.Map)
+                    offset += o.Len
+                }
+                obj[x.Code] = t;
                 break;
             case DataType.ascii:
                 v = coder.ascii.decode(buf, x.Len, i);
@@ -224,12 +349,12 @@ export function decode(buf: Buffer, obj: any, conf: Config[]) {
                 set(obj, x.Code, v)
                 break;
             case DataType.uint:
-                v = coder.uint.decode(buf, x.Len, i) * x.Unit;
+                v = coder.uint.decode(buf, x.Len, i) * (x.Unit || 1);
                 txt.Value = v;
                 set(obj, x.Code, v)
                 break;
             case DataType.int:
-                v = coder.int.decode(buf, x.Len, i) * x.Unit;
+                v = coder.int.decode(buf, x.Len, i) * (x.Unit || 1);
                 txt.Value = v;
                 set(obj, x.Code, v)
                 break;
@@ -237,4 +362,8 @@ export function decode(buf: Buffer, obj: any, conf: Config[]) {
         explain.push(txt)
         i += x.Len;
     }
+    return {
+        explain,
+        obj
+    };
 }
