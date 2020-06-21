@@ -185,7 +185,8 @@ export enum DataType {
     timestamp = 'timestamp',
     object = 'object',
     array = 'array',
-    buffer = 'buffer'
+    buffer = 'buffer',
+    hex = 'hex'
 }
 export class Config {
     Name: string = "";
@@ -239,6 +240,7 @@ export function buffer_encode(obj: any, conf: Config[]) {
         let v: any;
         let t: { [index: string]: any } = {}
         switch (x.Type) {
+            case DataType.hex:
             case DataType.buffer:
                 if (obj[x.Code] instanceof Buffer) {
                     bufs.push(obj[x.Code]);
@@ -344,6 +346,9 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]) {
                     }
                     x.Len = len;
                 }
+                break;
+            case DataType.hex:
+                obj[x.Code] = buf.slice(i, x.Len).toString('hex');
                 break;
             case DataType.object:
                 let rs = buffer_decode(buf.slice(i, x.Len), t, x.Config || [])
