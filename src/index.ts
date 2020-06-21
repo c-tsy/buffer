@@ -2,9 +2,6 @@ import { Buffer } from 'buffer'
 // import * as set from 'set-value'
 import get = require('get-value');
 import set = require('set-value');
-import { Buffer } from 'buffer';
-import { off } from 'process';
-import { debug } from 'console';
 exports.Buffer = Buffer;
 /**
  * hex转buffer
@@ -219,6 +216,11 @@ interface Explain {
     Code: string;
     Memo: string;
 }
+/**
+ * 二进制编码
+ * @param obj 
+ * @param conf 
+ */
 export function buffer_encode(obj: any, conf: Config[]) {
     let i = 0;
     let explain: Explain[] = [];
@@ -344,7 +346,9 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]) {
                 }
                 break;
             case DataType.object:
-                obj[x.Code] = buffer_decode(buf.slice(i, x.Len), t, x.Config || [])
+                let rs = buffer_decode(buf.slice(i, x.Len), t, x.Config || [])
+                obj[x.Code] = rs.obj;
+                explain.push(...rs.explain);
                 break;
             case DataType.array:
                 if (obj[x.Code] instanceof Array) {
@@ -359,10 +363,9 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]) {
                     len = x.ArrayLen || 0
                 }
                 for (let o = 0; o < len; o++) {
-                    if (x.Config && x.Config.length == 1) {
-
-                    }
-                    obj[x.Code].push(buffer_decode(buf.slice(i, x.Len), get(obj, x.Code), x.Config || []))
+                    let rs = buffer_decode(buf.slice(i, x.Len), get(obj, x.Code), x.Config || []);
+                    obj[x.Code].push(rs.obj)
+                    explain.push(...rs.explain)
                     i += x.Len;
                 }
                 break;
@@ -373,8 +376,15 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]) {
                 let tbuf = buf.slice(i, i + x.Len), offset = 0;
                 for (let o of x.Config) {
                     t[o.Code] = bit_decode(tbuf, x.Len, offset, o.Len, o.Map)
+                    txt.Name = x.Name + ' ' + o.Name;
+                    txt.Code = x.Code + '.' + o.Code;
+                    txt.Value = t[o.Code];
+                    explain.push(txt);
                     offset += o.Len
                 }
+                txt.Name = x.Name
+                txt.Code = x.Code
+                txt.Value = JSON.stringify(t);
                 obj[x.Code] = t;
                 break;
             case DataType.ascii:
