@@ -69,7 +69,7 @@ export function uint_decode(b: Buffer, len: number, offset: number = 0) {
  * @param len 
  */
 export function bcd_encode(ID: string | number, len: number) {
-    let t = ID.toString().padStart(len * 2, '0');
+    let t = Number(ID).toString().padStart(len * 2, '0');
     let b = '';
     for (let i = t.length; i >= 0; i -= 2) {
         b += t.slice(i - 2, i);
@@ -261,7 +261,7 @@ export function buffer_encode(obj: any, conf: Config[]): { buf: Buffer, explain:
                     let v = obj[x.Code];
                     let type = typeof v;
                     if ('string' == type) {
-                        bufs.push(hex2buffer(v).reverse());
+                        bufs.push(bcd_encode(v, x.Len));
                     }
                     break;
                 case DataType.array:
@@ -357,21 +357,21 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
                     if (x.Buffer) {
                         let len = x.Buffer.Len || obj[x.Buffer.Code || ''] || x.Len;
                         if (len > 0) {
-                            obj[x.Code] = buf.slice(i, len);
+                            obj[x.Code] = buf.slice(i, i + len);
                         }
                         x.Len = len;
                     }
                     break;
                 case DataType.hex:
-                    obj[x.Code] = buf.slice(i, x.Len).toString('hex');
+                    obj[x.Code] = buf.slice(i, i + x.Len).toString('hex');
                     txt.Value = obj[x.Code];
                     break;
                 case DataType.bcd:
-                    obj[x.Code] = buf.slice(i, x.Len).reverse().toString('hex');
+                    obj[x.Code] = Number(buf.slice(i, i + x.Len).reverse().toString('hex'));
                     txt.Value = obj[x.Code];
                     break;
                 case DataType.object:
-                    let rs = buffer_decode(buf.slice(i, x.Len), t, x.Config || [])
+                    let rs = buffer_decode(buf.slice(i, i + x.Len), t, x.Config || [])
                     obj[x.Code] = rs.obj;
                     explain.push(...rs.explain);
                     break;
@@ -388,7 +388,7 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
                         len = x.ArrayLen || 0
                     }
                     for (let o = 0; o < len; o++) {
-                        let rs = buffer_decode(buf.slice(i, x.Len), get(obj, x.Code), x.Config || []);
+                        let rs = buffer_decode(buf.slice(i, i + x.Len), get(obj, x.Code), x.Config || []);
                         obj[x.Code].push(rs.obj)
                         explain.push(...rs.explain)
                         i += x.Len;
