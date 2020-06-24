@@ -110,7 +110,7 @@ export function ascii_decode(buf: Buffer, len: number, offset: number = 0) {
  * @param date 
  */
 export function timestamp_encode(date: Date | string | number) {
-    return Math.floor(new Date(date).getTime());
+    return Math.floor(new Date(date).getTime() / 1000);
 }
 /**
  * 时间戳解码
@@ -241,16 +241,24 @@ export function buffer_encode(obj: any, conf: Config[]): { buf: Buffer, explain:
             };
             let v: any;
             let t: { [index: string]: any } = {}
+
+            // if ('Data,Len'.split(',').includes(x.Code)) { debugger }
             switch (x.Type) {
                 case DataType.hex:
                 case DataType.buffer:
+                    let tbuf = Buffer.alloc(0);
                     if (obj[x.Code] instanceof Buffer) {
-                        bufs.push(obj[x.Code]);
+                        tbuf = obj[x.Code];
                     } else if ('string' == typeof obj[x.Code]) {
-                        bufs.push(Buffer.from(obj[x.Code], 'hex'))
+                        tbuf = (Buffer.from(obj[x.Code], 'hex'))
                     } else {
                         throw new Error('Error Buffer Value')
                     }
+                    if (tbuf.length > 0)
+                        bufs.push(tbuf);
+                    // if(x.Buffer?.Code){
+
+                    // }
                     break;
                 case DataType.object:
                     t = buffer_encode(obj[x.Code], x.Config || [])
@@ -258,11 +266,11 @@ export function buffer_encode(obj: any, conf: Config[]): { buf: Buffer, explain:
                     explain.push(...t.explain)
                     break;
                 case DataType.bcd:
-                    let v = obj[x.Code];
-                    let type = typeof v;
-                    if ('string' == type) {
-                        bufs.push(bcd_encode(v, x.Len));
-                    }
+                    v = obj[x.Code];
+                    // let type = typeof v;
+                    // if ('string' == type) {
+                    bufs.push(bcd_encode(v, x.Len));
+                    // }
                     break;
                 case DataType.array:
                     if (obj[x.Code] instanceof Array) {
@@ -352,12 +360,18 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
             };
             let v: any;
             let t: { [index: string]: any } = {}
+            // if ('Data,Len'.split(',').includes(x.Code)) { debugger }
             switch (x.Type) {
                 case DataType.buffer:
                     if (x.Buffer) {
-                        let len = x.Buffer.Len || obj[x.Buffer.Code || ''] || x.Len;
+                        let len = x.Buffer.Len || obj[x.Buffer.Code || '']
+                        if (!x.Buffer.Code && !len) {
+                            len = x.Len;
+                        }
                         if (len > 0) {
                             obj[x.Code] = buf.slice(i, i + len);
+                        } else {
+                            obj[x.Code] = Buffer.alloc(0);
                         }
                         x.Len = len;
                     }
