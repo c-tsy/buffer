@@ -222,97 +222,103 @@ interface Explain {
  * @param obj 
  * @param conf 
  */
-export function buffer_encode(obj: any, conf: Config[]) {
+export function buffer_encode(obj: any, conf: Config[]): { buf: Buffer, explain: Explain[], error: Error } {
     let i = 0;
     let explain: Explain[] = [];
-    let bufs: Buffer[] = [], buf: Buffer;
-    for (let x of conf) {
-        let txt: Explain = {
-            Start: i,
-            End: i + x.Len,
-            Hex: '',
-            Value: '',
-            Unit: x.Unit || 1,
-            Name: x.Name,
-            Code: x.Code,
-            Memo: x.Memo || ''
-        };
-        let v: any;
-        let t: { [index: string]: any } = {}
-        switch (x.Type) {
-            case DataType.hex:
-            case DataType.buffer:
-                if (obj[x.Code] instanceof Buffer) {
-                    bufs.push(obj[x.Code]);
-                } else if ('string' == typeof obj[x.Code]) {
-                    bufs.push(Buffer.from(obj[x.Code], 'hex'))
-                } else {
-                    throw new Error('Error Buffer Value')
-                }
-                break;
-            case DataType.object:
-                t = buffer_encode(obj[x.Code], x.Config || [])
-                bufs.push(t.buf);
-                explain.push(...t.explain)
-                break;
-            case DataType.array:
-                if (obj[x.Code] instanceof Array) {
-                    for (let o of obj[x.Code]) {
-                        t = buffer_encode(o, x.Config || [])
-                        bufs.push(t.buf);
-                        explain.push(...t.explain);
-                        i += t.buf.length;
+    let bufs: Buffer[] = [], buf: Buffer, error = new Error();
+    try {
+        for (let x of conf) {
+            let txt: Explain = {
+                Start: i,
+                End: i + x.Len,
+                Hex: '',
+                Value: '',
+                Unit: x.Unit || 1,
+                Name: x.Name,
+                Code: x.Code,
+                Memo: x.Memo || ''
+            };
+            let v: any;
+            let t: { [index: string]: any } = {}
+            switch (x.Type) {
+                case DataType.hex:
+                case DataType.buffer:
+                    if (obj[x.Code] instanceof Buffer) {
+                        bufs.push(obj[x.Code]);
+                    } else if ('string' == typeof obj[x.Code]) {
+                        bufs.push(Buffer.from(obj[x.Code], 'hex'))
+                    } else {
+                        throw new Error('Error Buffer Value')
                     }
-                }
-                break;
-            case DataType.bit:
-                buf = Buffer.alloc(x.Len);
-                if (!x.Config) {
+                    break;
+                case DataType.object:
+                    t = buffer_encode(obj[x.Code], x.Config || [])
+                    bufs.push(t.buf);
+                    explain.push(...t.explain)
+                    break;
+                case DataType.array:
+                    if (obj[x.Code] instanceof Array) {
+                        for (let o of obj[x.Code]) {
+                            t = buffer_encode(o, x.Config || [])
+                            bufs.push(t.buf);
+                            explain.push(...t.explain);
+                            i += t.buf.length;
+                        }
+                    }
+                    break;
+                case DataType.bit:
+                    buf = Buffer.alloc(x.Len);
+                    if (!x.Config) {
+                        bufs.push(buf);
+                        continue;
+                    }
+                    let tnumber = 0, offset = 0;
+                    for (let o of x.Config) {
+                        //反向MAP
+                        tnumber |= bit_encode(obj[x.Code][o.Code] || 0, offset, o.Len || 0);
+                        offset += o.Len;
+                    }
+                    buf.writeUIntLE(tnumber, 0, x.Len)
                     bufs.push(buf);
-                    continue;
-                }
-                let tnumber = 0, offset = 0;
-                for (let o of x.Config) {
-                    //反向MAP
-                    tnumber |= bit_encode(obj[x.Code][o.Code] || 0, offset, o.Len || 0);
-                    offset += o.Len;
-                }
-                buf.writeUIntLE(tnumber, 0, x.Len)
-                bufs.push(buf);
-                break;
-            case DataType.ascii:
-                buf = coder.ascii.encode(obj[x.Code] || '', x.Len)
-                txt.Value = obj[x.Code] || '';
-                bufs.push(buf);
-                break;
-            case DataType.timestamp:
-                v = obj[x.Code] || 0
-                buf = coder.uint.encode(coder.timestamp.encode(v), 4);
-                txt.Value = v;
-                bufs.push(buf);
-                break;
-            case DataType.uint:
-                v = (obj[x.Code] || 0) / (x.Unit || 1)
-                buf = coder.uint.encode(v, x.Len);
-                txt.Value = v;
-                bufs.push(buf);
-                break;
-            case DataType.int:
-                v = (obj[x.Code] || 0) / (x.Unit || 1)
-                buf = coder.int.encode(v, x.Len);
-                txt.Value = v;
-                bufs.push(buf);
-                break;
+                    break;
+                case DataType.ascii:
+                    buf = coder.ascii.encode(obj[x.Code] || '', x.Len)
+                    txt.Value = obj[x.Code] || '';
+                    bufs.push(buf);
+                    break;
+                case DataType.timestamp:
+                    v = obj[x.Code] || 0
+                    buf = coder.uint.encode(coder.timestamp.encode(v), 4);
+                    txt.Value = v;
+                    bufs.push(buf);
+                    break;
+                case DataType.uint:
+                    v = (obj[x.Code] || 0) / (x.Unit || 1)
+                    buf = coder.uint.encode(v, x.Len);
+                    txt.Value = v;
+                    bufs.push(buf);
+                    break;
+                case DataType.int:
+                    v = (obj[x.Code] || 0) / (x.Unit || 1)
+                    buf = coder.int.encode(v, x.Len);
+                    txt.Value = v;
+                    bufs.push(buf);
+                    break;
+            }
+            txt.Hex = buffer2hex(bufs[bufs.length - 1]);
+            explain.push(txt)
+            // console.log([x.Name, obj[x.Code], txt.Hex].join('\t'))
+            i += x.Len;
         }
-        txt.Hex = buffer2hex(bufs[bufs.length - 1]);
-        explain.push(txt)
-        console.log([x.Name, obj[x.Code], txt.Hex].join('\t'))
-        i += x.Len;
+    } catch (error) {
+        error = error;
+    } finally {
+        return {
+            explain,
+            buf: Buffer.concat(bufs),
+            error
+        };
     }
-    return {
-        explain,
-        buf: Buffer.concat(bufs)
-    };
 }
 /**
  * 解码
@@ -320,104 +326,111 @@ export function buffer_encode(obj: any, conf: Config[]) {
  * @param obj 
  * @param conf 
  */
-export function buffer_decode(buf: Buffer, obj: any, conf: Config[]) {
+export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any, explain: Explain[], error: Error } {
     let i = 0;
-    let explain: Explain[] = [];
-    for (let x of conf) {
-        // console.log(x.Code)
-        let txt: Explain = {
-            Start: i,
-            End: i + x.Len,
-            Hex: buffer2hex(buf.slice(i, i + x.Len)),
-            Value: '',
-            Unit: x.Unit || 1,
-            Name: x.Name,
-            Code: x.Code,
-            Memo: x.Memo || ''
-        };
-        let v: any;
-        let t: { [index: string]: any } = {}
-        switch (x.Type) {
-            case DataType.buffer:
-                if (x.Buffer) {
-                    let len = x.Buffer.Len || obj[x.Buffer.Code || ''] || x.Len;
-                    if (len > 0) {
-                        obj[x.Code] = buf.slice(i, len);
+    let explain: Explain[] = [], error = new Error;
+    try {
+        for (let x of conf) {
+            // console.log(x.Code)
+            let txt: Explain = {
+                Start: i,
+                End: i + x.Len,
+                Hex: buffer2hex(buf.slice(i, i + x.Len)),
+                Value: '',
+                Unit: x.Unit || 1,
+                Name: x.Name,
+                Code: x.Code,
+                Memo: x.Memo || ''
+            };
+            let v: any;
+            let t: { [index: string]: any } = {}
+            switch (x.Type) {
+                case DataType.buffer:
+                    if (x.Buffer) {
+                        let len = x.Buffer.Len || obj[x.Buffer.Code || ''] || x.Len;
+                        if (len > 0) {
+                            obj[x.Code] = buf.slice(i, len);
+                        }
+                        x.Len = len;
                     }
-                    x.Len = len;
-                }
-                break;
-            case DataType.hex:
-                obj[x.Code] = buf.slice(i, x.Len).toString('hex');
-                break;
-            case DataType.object:
-                let rs = buffer_decode(buf.slice(i, x.Len), t, x.Config || [])
-                obj[x.Code] = rs.obj;
-                explain.push(...rs.explain);
-                break;
-            case DataType.array:
-                if (obj[x.Code] instanceof Array) {
+                    break;
+                case DataType.hex:
+                    obj[x.Code] = buf.slice(i, x.Len).toString('hex');
+                    txt.Value = obj[x.Code];
+                    break;
+                case DataType.object:
+                    let rs = buffer_decode(buf.slice(i, x.Len), t, x.Config || [])
+                    obj[x.Code] = rs.obj;
+                    explain.push(...rs.explain);
+                    break;
+                case DataType.array:
+                    if (obj[x.Code] instanceof Array) {
 
-                } else {
-                    obj[x.Code] = [];
-                }
-                let len = 0;
-                if ('string' == typeof x.ArrayLen) {
-                    len = Number(obj[x.ArrayLen]);
-                } else {
-                    len = x.ArrayLen || 0
-                }
-                for (let o = 0; o < len; o++) {
-                    let rs = buffer_decode(buf.slice(i, x.Len), get(obj, x.Code), x.Config || []);
-                    obj[x.Code].push(rs.obj)
-                    explain.push(...rs.explain)
-                    i += x.Len;
-                }
-                break;
-            case DataType.bit:
-                if (!x.Config) {
-                    continue;
-                }
-                let tbuf = buf.slice(i, i + x.Len), offset = 0;
-                for (let o of x.Config) {
-                    t[o.Code] = bit_decode(tbuf, x.Len, offset, o.Len, o.Map)
-                    txt.Name = x.Name + ' ' + o.Name;
-                    txt.Code = x.Code + '.' + o.Code;
-                    txt.Value = t[o.Code];
-                    explain.push(txt);
-                    offset += o.Len
-                }
-                txt.Name = x.Name
-                txt.Code = x.Code
-                txt.Value = JSON.stringify(t);
-                obj[x.Code] = t;
-                break;
-            case DataType.ascii:
-                v = coder.ascii.decode(buf, x.Len, i);
-                txt.Value = v;
-                set(obj, x.Code, v)
-                break;
-            case DataType.timestamp:
-                v = coder.timestamp.decode(buf, x.Len, i);
-                txt.Value = v;
-                set(obj, x.Code, v)
-                break;
-            case DataType.uint:
-                v = coder.uint.decode(buf, x.Len, i) * (x.Unit || 1);
-                txt.Value = v;
-                set(obj, x.Code, v)
-                break;
-            case DataType.int:
-                v = coder.int.decode(buf, x.Len, i) * (x.Unit || 1);
-                txt.Value = v;
-                set(obj, x.Code, v)
-                break;
+                    } else {
+                        obj[x.Code] = [];
+                    }
+                    let len = 0;
+                    if ('string' == typeof x.ArrayLen) {
+                        len = Number(obj[x.ArrayLen]);
+                    } else {
+                        len = x.ArrayLen || 0
+                    }
+                    for (let o = 0; o < len; o++) {
+                        let rs = buffer_decode(buf.slice(i, x.Len), get(obj, x.Code), x.Config || []);
+                        obj[x.Code].push(rs.obj)
+                        explain.push(...rs.explain)
+                        i += x.Len;
+                    }
+                    break;
+                case DataType.bit:
+                    if (!x.Config) {
+                        continue;
+                    }
+                    let tbuf = buf.slice(i, i + x.Len), offset = 0;
+                    for (let o of x.Config) {
+                        t[o.Code] = bit_decode(tbuf, x.Len, offset, o.Len, o.Map)
+                        txt.Name = x.Name + ' ' + o.Name;
+                        txt.Code = x.Code + '.' + o.Code;
+                        txt.Value = t[o.Code];
+                        explain.push(txt);
+                        offset += o.Len
+                    }
+                    txt.Name = x.Name
+                    txt.Code = x.Code
+                    txt.Value = JSON.stringify(t);
+                    obj[x.Code] = t;
+                    break;
+                case DataType.ascii:
+                    v = coder.ascii.decode(buf, x.Len, i);
+                    txt.Value = v;
+                    set(obj, x.Code, v)
+                    break;
+                case DataType.timestamp:
+                    v = coder.timestamp.decode(buf, x.Len, i);
+                    txt.Value = v;
+                    set(obj, x.Code, v)
+                    break;
+                case DataType.uint:
+                    v = coder.uint.decode(buf, x.Len, i) * (x.Unit || 1);
+                    txt.Value = v;
+                    set(obj, x.Code, v)
+                    break;
+                case DataType.int:
+                    v = coder.int.decode(buf, x.Len, i) * (x.Unit || 1);
+                    txt.Value = v;
+                    set(obj, x.Code, v)
+                    break;
+            }
+            explain.push(txt)
+            i += x.Len;
         }
-        explain.push(txt)
-        i += x.Len;
+    } catch (error) {
+        error = error;
+    } finally {
+        return {
+            explain,
+            obj,
+            error
+        };
     }
-    return {
-        explain,
-        obj
-    };
 }
