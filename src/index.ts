@@ -186,7 +186,8 @@ export enum DataType {
     object = 'object',
     array = 'array',
     buffer = 'buffer',
-    hex = 'hex'
+    hex = 'hex',
+    bcd = 'bcd'
 }
 export class Config {
     Name: string = "";
@@ -255,6 +256,13 @@ export function buffer_encode(obj: any, conf: Config[]): { buf: Buffer, explain:
                     t = buffer_encode(obj[x.Code], x.Config || [])
                     bufs.push(t.buf);
                     explain.push(...t.explain)
+                    break;
+                case DataType.bcd:
+                    let v = obj[x.Code];
+                    let type = typeof v;
+                    if ('string' == type) {
+                        bufs.push(hex2buffer(v).reverse());
+                    }
                     break;
                 case DataType.array:
                     if (obj[x.Code] instanceof Array) {
@@ -358,6 +366,10 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
                     obj[x.Code] = buf.slice(i, x.Len).toString('hex');
                     txt.Value = obj[x.Code];
                     break;
+                case DataType.bcd:
+                    obj[x.Code] = buf.slice(i, x.Len).reverse().toString('hex');
+                    txt.Value = obj[x.Code];
+                    break;
                 case DataType.object:
                     let rs = buffer_decode(buf.slice(i, x.Len), t, x.Config || [])
                     obj[x.Code] = rs.obj;
@@ -397,7 +409,7 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
                     }
                     txt.Name = x.Name
                     txt.Code = x.Code
-                    txt.Value = JSON.stringify(t);
+                    // txt.Value = JSON.stringify(t);
                     obj[x.Code] = t;
                     break;
                 case DataType.ascii:
