@@ -130,12 +130,11 @@ export function timestamp_decode(buf: Buffer, len: number, offset: number) {
  * @param map 
  */
 export function bit_decode(buf: Buffer, len: number, offset: number = 0, bitlen: number = 1, map: { [index: string]: any } = {}) {
-    let o = 0x00, u = buf.readUIntLE(0, len);
+    let o = 0x00, u = buf.readUIntBE(0, len);
     for (let i = 0; i < bitlen; i++) {
         o = o | 0x01;
         o = o << 1;
     }
-    o = o >> 1
     let rs = (u >> offset) & o;
     return rs;
 }
