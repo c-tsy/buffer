@@ -110,7 +110,21 @@ export function ascii_decode(buf: Buffer, len: number, offset: number = 0) {
  * @param date 
  */
 export function timestamp_encode(date: Date | string | number) {
-    return Math.floor(new Date(date).getTime() / 1000);
+    if (date instanceof Date) {
+        return Math.floor(date.getTime() / 1000);
+    } else if ('string' == typeof date) {
+        if ('NaN' == Number(date).toString())
+            return Math.floor(new Date(date).getTime() / 1000)
+        else
+            date = Number(date);
+    }
+    if ('number' == typeof date) {
+        if (date.toString().length <= 10) {
+            date *= 1000;
+        }
+        return Math.floor(new Date(date).getTime() / 1000);
+    }
+    return 0;
 }
 /**
  * 时间戳解码
