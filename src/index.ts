@@ -144,15 +144,66 @@ export function timestamp_decode(buf: Buffer, len: number, offset: number) {
  * @param map 
  */
 export function bit_decode(buf: Buffer, len: number, offset: number = 0, bitlen: number = 1, map: { [index: string]: any } = {}) {
+    let a = bit_split(buf.slice(0, len))
+    return bit_join(a.slice(offset, offset + bitlen))
     let o = 0x00, u = buf.readUIntBE(0, len);
     for (let i = 0; i < bitlen; i++) {
-        o = o | 0x01;
-        o = o << 1;
+        o = o | 0x80;
+        o = o >> 1;
     }
-    let rs = (u >> offset) & o;
+    o = o << 1
+    let rs = (u << offset) & o;
+    console.log(u, offset, bitlen, o, rs)
     return rs;
 }
 
+// console.log(bit_decode(Buffer.from('0209', 'hex'), 2, 2, 1))
+
+export function bit_join(a: number[]) {
+    let n = 0;
+    for (let x of a) {
+        n *= 2;
+        if (x > 0) {
+            n += 1
+        }
+    }
+    // console.log(a)
+    return n;
+    // let b = Buffer.alloc(Math.floor(a.length / 8));
+    // for (let i = 0; i < b.length; i++) {
+    //     for (let o = 7; o >= 0; o++) {
+    //         let k = (i * 8) + o
+    //         if (!a[k]) {
+    //             break;
+    //         }
+    //         if (a[k] > 0)
+    //             b[i] |= (0x01 << o)
+    //     }
+    // }
+    // return b;
+}
+// console.log(bit_join("0000001000001001".split('').map((v) => Number(v))))
+export function bit_split(buf: Buffer) {
+    let a = [];
+    for (let i = 0; i < buf.length; i++) {
+        for (let o = 7; o >= 0; o--) {
+            let p = 0x01 << o;
+            // console.log(i, o, p, buf[i] & p)
+            a.push((buf[i] & p) > 0 ? 1 : 0)
+        }
+    }
+    // console.log(a)
+    return a;
+}
+
+// console.log(bit_split(Buffer.from('0209', 'hex')))
+
+/**
+ * 按位编码
+ * @param val 
+ * @param offset 
+ * @param bitlen 
+ */
 export function bit_encode(val: number, offset: number = 0, bitlen: number = 1) {
     let o = 0x00;
     for (let i = 0; i < bitlen; i++) {
