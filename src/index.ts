@@ -1,7 +1,5 @@
 import { Buffer } from 'buffer'
-// import * as set from 'set-value'
-import get = require('get-value');
-import set = require('set-value');
+import { get, set } from 'lodash'
 exports.Buffer = Buffer;
 /**
  * hex转buffer
