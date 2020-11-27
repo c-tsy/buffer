@@ -252,32 +252,102 @@ export enum DataType {
     bcd = 'bcd'
 }
 export class Config {
+    /**
+     * 命名
+     */
     Name: string = "";
+    /**
+     * 字段名称
+     */
     Code: string = "";
+    /**
+     * 数据类型
+     */
     Type: DataType = DataType.uint;
+    /**
+     * 长度
+     */
     Len: number = 0;
+    /**
+     * 注释
+     */
     Memo?: string = "";
+    /**
+     * 单位
+     */
     Unit?: number = 1;
+    /**
+     * 数组长度
+     */
     ArrayLen?: number | string = 0;
+    /**
+     * 二进制解码配置
+     */
     Buffer?: {
         Code?: string,
         Len?: number
     } = {}
+    /**
+     * 二进制解码深层配置，递归算法
+     */
     Config?: Config[] = []
+    /**
+     * 偏移量
+     */
     Offset?: number = 0;
+    /**
+     * 是否翻转该部分数据
+     */
+    Reverse?: boolean = false;
+    /**
+     * 是否补齐
+     */
+    Pad?: 'start' | 'end';
+    /**
+     * 数据字典
+     */
     Map?: { [index: string]: any } = {}
-    constructor(data?: Config) {
-
+    constructor(data?: Config | any) {
+        if (data) {
+            let that: any = this;
+            for (let x in data) {
+                that[x] = data[x];
+            }
+        }
     }
 }
 interface Explain {
+    /**
+     * 起点
+     */
     Start: number;
+    /**
+     * 结束点
+     */
     End: number;
+    /**
+     * Hex 模式内容
+     */
     Hex: string;
+    /**
+     * 解析值
+     */
     Value: string | number | any;
+    /**
+     * 单位
+     */
     Unit: string | number;
+    /**
+     * 名称
+     */
     Name: string;
+    /**
+     * 代码
+     */
     Code: string;
+    /**
+     * 注释
+     */
     Memo: string;
 }
 /**
@@ -301,92 +371,100 @@ export function buffer_encode(obj: any, conf: Config[]): { buf: Buffer, explain:
                 Code: x.Code,
                 Memo: x.Memo || ''
             };
-            let v: any;
+            let v: any = obj[x.Code];
             let t: { [index: string]: any } = {}
 
+            let tbuf = Buffer.alloc(0);
             // if ('Data,Len'.split(',').includes(x.Code)) { debugger }
             switch (x.Type) {
                 case DataType.hex:
                 case DataType.buffer:
-                    let tbuf = Buffer.alloc(0);
-                    if (obj[x.Code] instanceof Buffer) {
-                        tbuf = obj[x.Code];
-                    } else if ('string' == typeof obj[x.Code]) {
-                        tbuf = (Buffer.from(obj[x.Code], 'hex'))
+                    if (v instanceof Buffer) {
+                        tbuf = v;
+                    } else if ('string' == typeof v) {
+                        if (v.length % 2 == 1) {
+                            switch (x.Pad) {
+                                case 'end':
+                                    v.padEnd(x.Len * 2, '0')
+                                    break;
+                                default:
+                                    v.padStart(x.Len * 2, '0')
+                                    break;
+                            }
+                        }
+                        tbuf = (Buffer.from(v, 'hex'))
                     } else {
                         throw new Error('Error Buffer Value')
                     }
-                    if (tbuf.length > 0)
-                        bufs.push(tbuf);
-                    // if(x.Buffer?.Code){
-
-                    // }
                     break;
                 case DataType.object:
-                    t = buffer_encode(obj[x.Code], x.Config || [])
-                    bufs.push(t.buf);
+                    t = buffer_encode(v, x.Config || [])
                     explain.push(...t.explain)
                     break;
                 case DataType.bcd:
-                    v = obj[x.Code];
+                    v = v;
                     // let type = typeof v;
                     // if ('string' == type) {
-                    bufs.push(bcd_encode(v, x.Len));
+                    tbuf = bcd_encode(v, x.Len)
+                    // bufs.push(bcd_encode(v, x.Len));
                     // }
                     break;
                 case DataType.array:
-                    if (obj[x.Code] instanceof Array) {
-                        for (let o of obj[x.Code]) {
+                    if (v instanceof Array) {
+                        let otbuf = [];
+                        for (let o of v) {
                             t = buffer_encode(o, x.Config || [])
-                            bufs.push(t.buf);
+                            otbuf.push(t.buf);
+                            // bufs.push(t.buf);
                             explain.push(...t.explain);
                             i += t.buf.length;
                         }
+                        tbuf = Buffer.concat(otbuf);
                     }
                     break;
                 case DataType.bit:
                     buf = Buffer.alloc(x.Len);
                     if (!x.Config) {
-                        bufs.push(buf);
+                        tbuf = buf;
                         continue;
                     }
                     let tnumber = 0, offset = 0;
                     for (let o of x.Config) {
                         //反向MAP
-                        tnumber |= bit_encode(obj[x.Code][o.Code] || 0, offset, o.Len || 0);
+                        tnumber |= bit_encode(v[o.Code] || 0, offset, o.Len || 0);
                         offset += o.Len;
                     }
                     buf.writeUIntLE(tnumber, 0, x.Len)
-                    bufs.push(buf);
+                    tbuf = buf;
                     break;
                 case DataType.ascii:
-                    buf = coder.ascii.encode(obj[x.Code] || '', x.Len)
-                    txt.Value = obj[x.Code] || '';
-                    bufs.push(buf);
+                    tbuf = coder.ascii.encode(v || '', x.Len)
+                    txt.Value = v || '';
                     break;
                 case DataType.timestamp:
-                    v = obj[x.Code] || 0
-                    buf = coder.uint.encode(coder.timestamp.encode(v), 4);
+                    v = v || 0
+                    tbuf = coder.uint.encode(coder.timestamp.encode(v), 4);
                     txt.Value = v;
-                    bufs.push(buf);
                     break;
                 case DataType.uint:
-                    v = (obj[x.Code] || 0) / (x.Unit || 1)
-                    buf = coder.uint.encode(v, x.Len);
+                    v = (v || 0) / (x.Unit || 1)
+                    tbuf = coder.uint.encode(v, x.Len);
                     txt.Value = v;
-                    bufs.push(buf);
                     break;
                 case DataType.int:
-                    v = (obj[x.Code] || 0) / (x.Unit || 1)
-                    buf = coder.int.encode(v, x.Len);
+                    v = (v || 0) / (x.Unit || 1)
+                    tbuf = coder.int.encode(v, x.Len);
                     txt.Value = v;
-                    bufs.push(buf);
                     break;
             }
             txt.Hex = buffer2hex(bufs[bufs.length - 1]);
             explain.push(txt)
-            // console.log([x.Name, obj[x.Code], txt.Hex].join('\t'))
             i += x.Len;
+            if (x.Reverse) {
+                tbuf = tbuf.reverse()
+            }
+            if (tbuf.length > 0)
+                bufs.push(tbuf);
         }
     } catch (error) {
         error = error;
@@ -410,10 +488,12 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
     try {
         for (let x of conf) {
             // console.log(x.Code)
+            let tbuf = buf.slice(i, i + x.Len);
+            if (x.Reverse) { tbuf = tbuf.reverse() }
             let txt: Explain = {
                 Start: i,
                 End: i + x.Len,
-                Hex: buffer2hex(buf.slice(i, i + x.Len)),
+                Hex: buffer2hex(tbuf),
                 Value: '',
                 Unit: x.Unit || 1,
                 Name: x.Name,
@@ -440,6 +520,9 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
                     break;
                 case DataType.hex:
                     obj[x.Code] = buf.slice(i, i + x.Len).toString('hex');
+                    if (x.Pad) {
+                        obj[x.Code] = Number(obj[x.Code]).toString()
+                    }
                     txt.Value = obj[x.Code];
                     break;
                 case DataType.bcd:
