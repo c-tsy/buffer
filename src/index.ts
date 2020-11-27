@@ -457,14 +457,15 @@ export function buffer_encode(obj: any, conf: Config[]): { buf: Buffer, explain:
                     txt.Value = v;
                     break;
             }
-            txt.Hex = buffer2hex(bufs[bufs.length - 1]);
-            explain.push(txt)
             i += x.Len;
             if (x.Reverse) {
                 tbuf = tbuf.reverse()
             }
-            if (tbuf.length > 0)
+            txt.Hex = buffer2hex(tbuf);
+            explain.push(txt)
+            if (tbuf.length > 0) {
                 bufs.push(tbuf);
+            }
         }
     } catch (error) {
         error = error;
