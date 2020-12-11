@@ -249,7 +249,15 @@ export enum DataType {
     array = 'array',
     buffer = 'buffer',
     hex = 'hex',
-    bcd = 'bcd'
+    bcd = 'bcd',
+    /**
+     * 定长字符串，同ascii
+     */
+    string = "string",
+    /**
+     * 末尾检测的string
+     */
+    split_string = ""
 }
 export class Config {
     /**
@@ -307,6 +315,8 @@ export class Config {
      * 数据字典
      */
     Map?: { [index: string]: any } = {}
+
+    SplitHex: string = '00'
     constructor(data?: Config | any) {
         if (data) {
             let that: any = this;
@@ -316,39 +326,39 @@ export class Config {
         }
     }
 }
-interface Explain {
+class Explain {
     /**
      * 起点
      */
-    Start: number;
+    Start: number = 0;
     /**
      * 结束点
      */
-    End: number;
+    End: number = 0;
     /**
      * Hex 模式内容
      */
-    Hex: string;
+    Hex: string = '';
     /**
      * 解析值
      */
-    Value: string | number | any;
+    Value: string | number | any = '';
     /**
      * 单位
      */
-    Unit: string | number;
+    Unit: string | number = 0;
     /**
      * 名称
      */
-    Name: string;
+    Name: string = '';
     /**
      * 代码
      */
-    Code: string;
+    Code: string = '';
     /**
      * 注释
      */
-    Memo: string;
+    Memo: string = '';
 }
 /**
  * 二进制编码
@@ -373,7 +383,7 @@ export function buffer_encode(obj: any, conf: Config[]): { buf: Buffer, explain:
             };
             let v: any = obj[x.Code];
             let t: { [index: string]: any } = {}
-
+            let tlen = x.Len;
             let tbuf = Buffer.alloc(0);
             // if ('Data,Len'.split(',').includes(x.Code)) { debugger }
             switch (x.Type) {
@@ -437,6 +447,14 @@ export function buffer_encode(obj: any, conf: Config[]): { buf: Buffer, explain:
                     buf.writeUIntLE(tnumber, 0, x.Len)
                     tbuf = buf;
                     break;
+                case DataType.split_string:
+                    tlen = (v || '').length;
+                    tbuf = Buffer.concat([
+                        ascii_encode(v || '', tlen),
+                        Buffer.alloc(1, x.Len || 0)
+                    ])
+                    txt.Start = i;
+                    txt.End = i + tlen;
                 case DataType.ascii:
                     tbuf = coder.ascii.encode(v || '', x.Len)
                     txt.Value = v || '';
@@ -457,7 +475,7 @@ export function buffer_encode(obj: any, conf: Config[]): { buf: Buffer, explain:
                     txt.Value = v;
                     break;
             }
-            i += x.Len;
+            i += tlen;
             if (x.Reverse) {
                 tbuf = tbuf.reverse()
             }
@@ -489,8 +507,9 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
     try {
         for (let x of conf) {
             // console.log(x.Code)
-            let tbuf = buf.slice(i, i + x.Len);
-            if (x.Reverse) { tbuf = tbuf.reverse() }
+            let tlen = x.Len;
+            let tbuf = buf.slice(i, i + tlen);
+            if (x.Reverse && x.Type != DataType.split_string) { tbuf = tbuf.reverse() }
             let txt: Explain = {
                 Start: i,
                 End: i + x.Len,
@@ -560,9 +579,13 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
                     }
                     let tbuf = buf.slice(i, i + x.Len), offset = 0;
                     for (let o of x.Config) {
+                        let txt = new Explain()
                         t[o.Code] = bit_decode(tbuf, x.Len, offset, o.Len, o.Map)
                         txt.Name = x.Name + ' ' + o.Name;
                         txt.Code = x.Code + '.' + o.Code;
+                        // txt.Hex=x
+                        txt.Start = i;
+                        txt.End = i + x.Len
                         txt.Value = t[o.Code];
                         explain.push(txt);
                         offset += o.Len
@@ -571,6 +594,38 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
                     txt.Code = x.Code
                     // txt.Value = JSON.stringify(t);
                     obj[x.Code] = t;
+                    break;
+                case DataType.split_string:
+                    let s = Buffer.alloc(0), e = i, hex = buffer2hex(buf).split(' ');
+                    let spl = x.SplitHex || '00'
+                    for (let p = i; p < hex.length; p++) {
+                        if (hex[i] === spl) {
+                            i++;
+                            continue;
+                        }
+                        if (hex[p] === spl) {
+                            // tlen = p - i + 1;
+                            e = p;
+                            break;
+                        }
+                        // e=p;
+                    }
+                    s = buf.slice(i, e)
+                    if (x.Reverse) {
+                        s.reverse();
+                    }
+                    tlen = s.length + 1;
+                    txt.Hex = buffer2hex(s)
+                    v = Buffer.from(s).toString();
+                    let n = Number(v)
+                    if (n.toString() != 'NaN') {
+                        v = n;
+                    }
+                    if (x.Unit) {
+                        v = n * x.Unit
+                    }
+                    txt.Value = v
+                    set(obj, x.Code, v);
                     break;
                 case DataType.ascii:
                     v = coder.ascii.decode(buf, x.Len, i);
@@ -594,7 +649,7 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
                     break;
             }
             explain.push(txt)
-            i += x.Len;
+            i += tlen;
         }
     } catch (error) {
         error = error;
