@@ -315,8 +315,10 @@ export class Config {
      * 数据字典
      */
     Map?: { [index: string]: any } = {}
-
-    SplitHex: string = '00'
+    /**
+     * split_string模式下的末尾检测
+     */
+    SplitHex?: string = '00'
     constructor(data?: Config | any) {
         if (data) {
             let that: any = this;
