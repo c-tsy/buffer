@@ -663,3 +663,16 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
         };
     }
 }
+
+/**
+ * 解析输出成csv内容，复制粘贴到csv文件中查看
+ * @param explain 
+ * @param type 
+ */
+export function explain(explain: Explain[], type: 'csv' | 'log' = 'csv') {
+    let t = ['名称,代码,起始,结束,Hex,值,单位']
+    for (let x of explain) {
+        t.push([x.Name, x.Code, x.Start, x.End, x.Hex, x.Value, x.Unit].join(','))
+    }
+    return t.join('\r\n')
+}
