@@ -1,6 +1,6 @@
 {
   "name": "@ctsy/buffer",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -15,11 +15,11 @@
     "prepublish": "tsc"
   },
   "devDependencies": {
-    "@types/lodash": "^4.14.164",
+    "@types/lodash": "*",
     "@types/node": "*"
   },
   "dependencies": {
-    "buffer": "^5.4.3",
-    "lodash": "^4.17.20"
+    "buffer": "*",
+    "lodash": "*"
   }
 }
