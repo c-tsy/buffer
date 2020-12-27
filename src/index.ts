@@ -90,8 +90,9 @@ export function bcd_decode(b: Buffer, len: number, offset: number) {
  * @param str 
  * @param len 
  */
-export function ascii_encode(str: string, len: number) {
-    return Buffer.from(str.padStart(len, ' '));
+export function ascii_encode(str: string, len: number, stop: number = 0) {
+    return Buffer.from(Buffer.from(str, 'ascii').toString('hex').padEnd(len * 2, '0'), 'hex')
+    // return Buffer.from(len > 0 ? str.padStart(len, ' ') : str);
 }
 /**
  * ASCII 解码
@@ -99,7 +100,14 @@ export function ascii_encode(str: string, len: number) {
  * @param len 
  * @param offset 
  */
-export function ascii_decode(buf: Buffer, len: number, offset: number = 0) {
+export function ascii_decode(buf: Buffer, len: number, offset: number = 0, stop: number = 0) {
+    if (len == 0) {
+        for (let i = offset; i < buf.length; i++) {
+            if (buf[i] == stop || buf[i] == 0x00) {
+                return buf.slice(offset, i).toString();
+            }
+        }
+    }
     return buf.slice(offset, offset + len).toString();
 }
 
@@ -318,7 +326,11 @@ export class Config {
     /**
      * split_string模式下的末尾检测
      */
-    SplitHex?: string = '00'
+    SplitHex: string = '00'
+    /**
+     * ascii模式下的终止位
+     */
+    Stop: number = 0
     constructor(data?: Config | any) {
         if (data) {
             let that: any = this;
@@ -458,7 +470,7 @@ export function buffer_encode(obj: any, conf: Config[]): { buf: Buffer, explain:
                     txt.Start = i;
                     txt.End = i + tlen;
                 case DataType.ascii:
-                    tbuf = coder.ascii.encode(v || '', x.Len)
+                    tbuf = coder.ascii.encode(v || '', x.Len, x.Stop)
                     txt.Value = v || '';
                     break;
                 case DataType.timestamp:
@@ -630,7 +642,7 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
                     set(obj, x.Code, v);
                     break;
                 case DataType.ascii:
-                    v = coder.ascii.decode(buf, x.Len, i);
+                    v = coder.ascii.decode(buf, x.Len, i, x.Stop);
                     txt.Value = v;
                     set(obj, x.Code, v)
                     break;
