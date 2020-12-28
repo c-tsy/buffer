@@ -1,5 +1,6 @@
 import { Buffer } from 'buffer'
 import { get, set } from 'lodash'
+import * as math from 'mathjs'
 exports.Buffer = Buffer;
 /**
  * hex转buffer
@@ -291,7 +292,7 @@ export class Config {
     /**
      * 单位
      */
-    Unit?: number = 1;
+    Unit: number = 1;
     /**
      * 数组长度
      */
@@ -479,12 +480,16 @@ export function buffer_encode(obj: any, conf: Config[]): { buf: Buffer, explain:
                     txt.Value = v;
                     break;
                 case DataType.uint:
-                    v = (v || 0) / (x.Unit || 1)
+                    if (x.Unit != 1 && v != 0 && x.Unit != 0) {
+                        v = math.divide(v, x.Unit)
+                    }
                     tbuf = coder.uint.encode(v, x.Len);
                     txt.Value = v;
                     break;
                 case DataType.int:
-                    v = (v || 0) / (x.Unit || 1)
+                    if (x.Unit != 1 && v != 0 && x.Unit != 0) {
+                        v = math.divide(v, x.Unit)
+                    }
                     tbuf = coder.int.encode(v, x.Len);
                     txt.Value = v;
                     break;
@@ -652,12 +657,19 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
                     set(obj, x.Code, v)
                     break;
                 case DataType.uint:
-                    v = coder.uint.decode(buf, x.Len, i) * (x.Unit || 1);
+                    // v = coder.uint.decode(buf, x.Len, i) * (x.Unit || 1);
+                    v = coder.uint.decode(buf, x.Len, i)
+                    if (x.Unit != 1 && x.Unit != 0) {
+                        v = math.multiply(v, x.Unit)
+                    }
                     txt.Value = v;
                     set(obj, x.Code, v)
                     break;
                 case DataType.int:
-                    v = coder.int.decode(buf, x.Len, i) * (x.Unit || 1);
+                    v = coder.uint.decode(buf, x.Len, i)
+                    if (x.Unit != 1 && x.Unit != 0) {
+                        v = math.multiply(v, x.Unit)
+                    }
                     txt.Value = v;
                     set(obj, x.Code, v)
                     break;
