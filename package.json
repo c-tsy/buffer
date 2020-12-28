@@ -1,6 +1,6 @@
 {
   "name": "@ctsy/buffer",
-  "version": "1.0.21",
+  "version": "1.0.22",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -16,10 +16,12 @@
   },
   "devDependencies": {
     "@types/lodash": "*",
+    "@types/mathjs": "^6.0.9",
     "@types/node": "*"
   },
   "dependencies": {
     "buffer": "*",
-    "lodash": "*"
+    "lodash": "*",
+    "mathjs": "^8.1.0"
   }
 }
