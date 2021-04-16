@@ -561,6 +561,14 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
                     obj[x.Code] = buf.slice(i, i + x.Len).toString('hex');
                     if (x.Pad) {
                         obj[x.Code] = Number(obj[x.Code]).toString()
+                        switch (x.Pad) {
+                            case 'start':
+                                obj[x.Code] = obj[x.Code].replace(/^0+/, '')
+                                break
+                            case 'end':
+                                obj[x.Code] = obj[x.Code].replace(/0+$/, '');
+                                break
+                        }
                     }
                     txt.Value = obj[x.Code];
                     break;
