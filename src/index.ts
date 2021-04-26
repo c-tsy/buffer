@@ -88,7 +88,20 @@ export function uint_decode(b: Buffer, len: number, offset: number = 0, le = tru
         return b.readUIntBE(offset, len);
     }
 }
-
+/**
+ * 构建Config类
+ * @param Name 
+ * @param Code 
+ * @param Type 
+ * @param Len 
+ * @param Unit 
+ * @param other 
+ */
+export function buf_config(Name: string, Code: string, Type: DataType, Len: number, Unit: number = 0, other: { [index: string]: string | number | any } = {}) {
+    return new Config(Object.assign({
+        Name, Code, Type, Len, Unit,
+    }, other))
+}
 /**
  * BCD编码
  * @param ID 
@@ -205,6 +218,31 @@ export function hex_len_decode(buf: Buffer, len_len: number, le = true) {
  */
 export function hex_len_encode(str: string, len_len: number, le: boolean = true) {
     let b = Buffer.from(str, 'hex');
+    return Buffer.concat([
+        uint_encode(b.length, len_len, le),
+        b
+    ])
+}
+/**
+ * 变长字符
+ * @param buf 
+ * @param len_len 
+ * @param le 
+ * @returns 
+ */
+export function buffer_len_decode(buf: Buffer, len_len: number, le = true) {
+    let len = uint_decode(buf, len_len, 0, le)
+    return buf.slice(0, len)
+}
+
+/**
+ * 变长字符处理
+ * @param str 
+ * @param len_len 
+ * @param le 默认小端模式
+ * @returns 
+ */
+export function buffer_len_encode(b: Buffer, len_len: number, le: boolean = true) {
     return Buffer.concat([
         uint_encode(b.length, len_len, le),
         b
@@ -336,6 +374,10 @@ const coder = {
         encode: hex_len_encode,
         decode: hex_len_decode
     },
+    buffer_len: {
+        encode: buffer_len_encode,
+        decode: buffer_len_decode
+    },
     uint: {
         encode: uint_encode,
         decode: uint_decode,
@@ -370,7 +412,8 @@ export enum DataType {
     hex = 'hex',
     bcd = 'bcd',
     hex_len = 'hex_len',
-    ascii_len = 'hex_len',
+    ascii_len = 'ascii_len',
+    buffer_len = 'buffer_len',
     str_len = 'str_len',
     /**
      * 定长字符串，同ascii
@@ -612,10 +655,17 @@ export function buffer_encode(obj: any, conf: Config[]): { buf: Buffer, explain:
                     break;
                 case DataType.ascii_len:
                     tbuf = coder.ascii_len.encode(v, x.Len, x.LE)
+                    tlen = tbuf.length + x.Len
                     txt.Value = v;
                     break
                 case DataType.hex_len:
                     tbuf = coder.hex_len.encode(v, x.Len, x.LE)
+                    tlen = tbuf.length + x.Len
+                    txt.Value = v;
+                    break
+                case DataType.buffer_len:
+                    tbuf = coder.buffer_len.encode(v, x.Len, x.LE)
+                    tlen = tbuf.length + x.Len
                     txt.Value = v;
                     break
             }
@@ -673,6 +723,9 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
                     break;
                 case DataType.ascii_len:
                     obj[x.Code] = ascii_len_decode(buf.slice(i), x.Len, x.LE)
+                    break;
+                case DataType.ascii_len:
+                    obj[x.Code] = buffer_len_decode(buf.slice(i), x.Len, x.LE)
                     break;
                 case DataType.buffer:
                     if (x.Buffer) {
