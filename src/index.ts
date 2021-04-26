@@ -26,9 +26,19 @@ export function buffer2hex(b: Buffer): string {
  * @param num 
  * @param len 
  */
-export function int_encode(num: number, len: number = 1) {
+export function int_encode(num: number, len: number = 1, le = true) {
     let b = Buffer.alloc(len);
-    b.writeIntLE(num, 0, len)
+    if (le) {
+        if (len = 8) {
+            b.writeBigInt64LE(BigInt(num), 0)
+        } else
+            b.writeIntLE(num, 0, len)
+    } else {
+        if (len = 8) {
+            b.writeBigInt64BE(BigInt(num), 0)
+        } else
+            b.writeIntBE(num, 0, len)
+    }
     return b;
 }
 
@@ -38,17 +48,30 @@ export function int_encode(num: number, len: number = 1) {
  * @param len 
  * @param offset 
  */
-export function int_decode(buf: Buffer, len: number, offset: number = 0) {
-    return buf.readIntLE(offset, len);
+export function int_decode(buf: Buffer, len: number, offset: number = 0, le = true) {
+    if (le) {
+        if (len == 8) {
+            return buf.readBigInt64LE(offset)
+        }
+        return buf.readIntLE(offset, len);
+    } else {
+        if (len == 8) {
+            return buf.readBigInt64BE(offset)
+        }
+        return buf.readIntBE(offset, len);
+    }
 }
 /**
  * 无符号整数编码
  * @param num 
  * @param len 
  */
-export function uint_encode(num: number, len: number) {
+export function uint_encode(num: number, len: number, le = true) {
     let b = Buffer.alloc(len)
-    b.writeUIntLE(Number(num), 0, len);
+    if (le)
+        b.writeUIntLE(Number(num), 0, len);
+    else
+        b.writeUIntBE(Number(num), 0, len);
     return b;
 }
 
@@ -58,8 +81,12 @@ export function uint_encode(num: number, len: number) {
  * @param len 
  * @param offset 
  */
-export function uint_decode(b: Buffer, len: number, offset: number = 0) {
-    return b.readUIntLE(offset, len);
+export function uint_decode(b: Buffer, len: number, offset: number = 0, le = true) {
+    if (le)
+        return b.readUIntLE(offset, len);
+    else {
+        return b.readUIntBE(offset, len);
+    }
 }
 
 /**
@@ -111,7 +138,78 @@ export function ascii_decode(buf: Buffer, len: number, offset: number = 0, stop:
     }
     return buf.slice(offset, offset + len).toString();
 }
+/**
+ * hex 编码
+ * @param str 
+ * @param len 
+ */
+export function hex_encode(str: string, len: number, stop: number = 0) {
+    return Buffer.from(str.padEnd(len * 2, '0'), 'hex')
+    // return Buffer.from(len > 0 ? str.padStart(len, ' ') : str);
+}
+/**
+ * hex 解码
+ * @param buf 
+ * @param len 
+ * @param offset 
+ */
+export function hex_decode(buf: Buffer, len: number, offset: number = 0, stop: number = 0) {
+    return buf.slice(offset, offset + len).toString('hex');
+}
 
+/**
+ * 变长字符
+ * @param buf 
+ * @param len_len 
+ * @param le 
+ * @returns 
+ */
+export function ascii_len_decode(buf: Buffer, len_len: number, le = true) {
+    let len = uint_decode(buf, len_len, 0, le)
+    return buf.slice(0, len).toString()
+}
+
+/**
+ * 变长字符处理
+ * @param str 
+ * @param len_len 
+ * @param le 默认小端模式
+ * @returns 
+ */
+export function ascii_len_encode(str: string, len_len: number, le: boolean = true) {
+    let b = Buffer.from(str);
+    return Buffer.concat([
+        uint_encode(b.length, len_len, le),
+        b
+    ])
+}
+
+/**
+ * 变长字符
+ * @param buf 
+ * @param len_len 
+ * @param le 
+ * @returns 
+ */
+export function hex_len_decode(buf: Buffer, len_len: number, le = true) {
+    let len = uint_decode(buf, len_len, 0, le)
+    return buf.slice(0, len).toString('hex')
+}
+
+/**
+ * 变长字符处理
+ * @param str 
+ * @param len_len 
+ * @param le 默认小端模式
+ * @returns 
+ */
+export function hex_len_encode(str: string, len_len: number, le: boolean = true) {
+    let b = Buffer.from(str, 'hex');
+    return Buffer.concat([
+        uint_encode(b.length, len_len, le),
+        b
+    ])
+}
 /**
  * 时间戳编码
  * @param date 
@@ -226,6 +324,18 @@ const coder = {
         encode: ascii_encode,
         decode: ascii_decode,
     },
+    ascii_len: {
+        encode: ascii_len_encode,
+        decode: ascii_len_decode
+    },
+    hex: {
+        encode: hex_encode,
+        decode: hex_decode,
+    },
+    hex_len: {
+        encode: hex_len_encode,
+        decode: hex_len_decode
+    },
     uint: {
         encode: uint_encode,
         decode: uint_decode,
@@ -259,6 +369,9 @@ export enum DataType {
     buffer = 'buffer',
     hex = 'hex',
     bcd = 'bcd',
+    hex_len = 'hex_len',
+    ascii_len = 'hex_len',
+    str_len = 'str_len',
     /**
      * 定长字符串，同ascii
      */
@@ -332,6 +445,10 @@ export class Config {
      * ascii模式下的终止位
      */
     Stop: number = 0
+    /**
+     * 默认为小端模式
+     */
+    LE: boolean = true
     constructor(data?: Config | any) {
         if (data) {
             let that: any = this;
@@ -483,16 +600,24 @@ export function buffer_encode(obj: any, conf: Config[]): { buf: Buffer, explain:
                     if (x.Unit && x.Unit != 1 && v != 0 && x.Unit != 0) {
                         v = math.divide(v, x.Unit)
                     }
-                    tbuf = coder.uint.encode(v, x.Len);
+                    tbuf = coder.uint.encode(v, x.Len, x.LE);
                     txt.Value = v;
                     break;
                 case DataType.int:
                     if (x.Unit && x.Unit != 1 && v != 0 && x.Unit != 0) {
                         v = math.divide(v, x.Unit)
                     }
-                    tbuf = coder.int.encode(v, x.Len);
+                    tbuf = coder.int.encode(v, x.Len, x.LE);
                     txt.Value = v;
                     break;
+                case DataType.ascii_len:
+                    tbuf = coder.ascii_len.encode(v, x.Len, x.LE)
+                    txt.Value = v;
+                    break
+                case DataType.hex_len:
+                    tbuf = coder.hex_len.encode(v, x.Len, x.LE)
+                    txt.Value = v;
+                    break
             }
             i += tlen;
             if (x.Reverse) {
@@ -543,6 +668,12 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
             let t: { [index: string]: any } = {}
             // if ('Data,Len'.split(',').includes(x.Code)) { debugger }
             switch (x.Type) {
+                case DataType.hex_len:
+                    obj[x.Code] = hex_len_decode(buf.slice(i), x.Len, x.LE)
+                    break;
+                case DataType.ascii_len:
+                    obj[x.Code] = ascii_len_decode(buf.slice(i), x.Len, x.LE)
+                    break;
                 case DataType.buffer:
                     if (x.Buffer) {
                         let len = x.Buffer.Len || obj[x.Buffer.Code || '']
@@ -560,7 +691,7 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
                 case DataType.hex:
                     obj[x.Code] = buf.slice(i, i + x.Len).toString('hex');
                     if (x.Pad) {
-                        obj[x.Code] = Number(obj[x.Code]).toString()
+                        // obj[x.Code] = Number(obj[x.Code]).toString()
                         switch (x.Pad) {
                             case 'start':
                                 obj[x.Code] = obj[x.Code].replace(/^0+/, '')
@@ -666,7 +797,7 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
                     break;
                 case DataType.uint:
                     // v = coder.uint.decode(buf, x.Len, i) * (x.Unit || 1);
-                    v = coder.uint.decode(buf, x.Len, i)
+                    v = coder.uint.decode(buf, x.Len, i, x.LE)
                     if (x.Unit && x.Unit != 1 && x.Unit != 0) {
                         v = math.multiply(v, x.Unit)
                     }
@@ -674,7 +805,7 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
                     set(obj, x.Code, v)
                     break;
                 case DataType.int:
-                    v = coder.uint.decode(buf, x.Len, i)
+                    v = coder.uint.decode(buf, x.Len, i, x.LE)
                     if (x.Unit && x.Unit != 1 && x.Unit != 0) {
                         v = math.multiply(v, x.Unit)
                     }
