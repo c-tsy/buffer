@@ -29,7 +29,7 @@ export function buffer2hex(b: Buffer): string {
 export function int_encode(num: number, len: number = 1, le = true) {
     let b = Buffer.alloc(len);
     if (le) {
-        if (len = 8) {
+        if (len == 8) {
             b.writeBigInt64LE(BigInt(num), 0)
         } else
             b.writeIntLE(num, 0, len)
@@ -68,10 +68,17 @@ export function int_decode(buf: Buffer, len: number, offset: number = 0, le = tr
  */
 export function uint_encode(num: number, len: number, le = true) {
     let b = Buffer.alloc(len)
-    if (le)
-        b.writeUIntLE(Number(num), 0, len);
-    else
-        b.writeUIntBE(Number(num), 0, len);
+    if (len == 8) {
+        if (le)
+            b.writeBigInt64LE(BigInt(num), 0)
+        else
+            b.writeBigInt64BE(BigInt(num), 0)
+    } else {
+        if (le)
+            b.writeUIntLE(Number(num), 0, len);
+        else
+            b.writeUIntBE(Number(num), 0, len);
+    }
     return b;
 }
 
@@ -81,12 +88,11 @@ export function uint_encode(num: number, len: number, le = true) {
  * @param len 
  * @param offset 
  */
-export function uint_decode(b: Buffer, len: number, offset: number = 0, le = true) {
-    if (le)
-        return b.readUIntLE(offset, len);
-    else {
-        return b.readUIntBE(offset, len);
+export function uint_decode(b: Buffer, len: number, offset: number = 0, le = true): number {
+    if (len == 8) {
+        return (le ? b.readBigInt64LE(offset) : b.readBigInt64BE(offset) as any)
     }
+    return le ? b.readUIntLE(offset, len) : b.readUIntBE(offset, len)
 }
 /**
  * 构建Config类
@@ -179,7 +185,7 @@ export function hex_decode(buf: Buffer, len: number, offset: number = 0, stop: n
  */
 export function ascii_len_decode(buf: Buffer, len_len: number, le = true) {
     let len = uint_decode(buf, len_len, 0, le)
-    return buf.slice(0, len).toString()
+    return buf.slice(len_len, len_len + Number(len)).toString()
 }
 
 /**
@@ -190,7 +196,7 @@ export function ascii_len_decode(buf: Buffer, len_len: number, le = true) {
  * @returns 
  */
 export function ascii_len_encode(str: string, len_len: number, le: boolean = true) {
-    let b = Buffer.from(str);
+    let b = Buffer.from(str || '');
     return Buffer.concat([
         uint_encode(b.length, len_len, le),
         b
@@ -206,7 +212,7 @@ export function ascii_len_encode(str: string, len_len: number, le: boolean = tru
  */
 export function hex_len_decode(buf: Buffer, len_len: number, le = true) {
     let len = uint_decode(buf, len_len, 0, le)
-    return buf.slice(0, len).toString('hex')
+    return buf.slice(len_len, len_len + len).toString('hex')
 }
 
 /**
@@ -217,7 +223,7 @@ export function hex_len_decode(buf: Buffer, len_len: number, le = true) {
  * @returns 
  */
 export function hex_len_encode(str: string, len_len: number, le: boolean = true) {
-    let b = Buffer.from(str, 'hex');
+    let b = Buffer.from(str || '', 'hex');
     return Buffer.concat([
         uint_encode(b.length, len_len, le),
         b
@@ -232,7 +238,7 @@ export function hex_len_encode(str: string, len_len: number, le: boolean = true)
  */
 export function buffer_len_decode(buf: Buffer, len_len: number, le = true) {
     let len = uint_decode(buf, len_len, 0, le)
-    return buf.slice(0, len)
+    return buf.slice(len_len, len_len + Number(len))
 }
 
 /**
@@ -655,20 +661,21 @@ export function buffer_encode(obj: any, conf: Config[]): { buf: Buffer, explain:
                     break;
                 case DataType.ascii_len:
                     tbuf = coder.ascii_len.encode(v, x.Len, x.LE)
-                    tlen = tbuf.length + x.Len
+                    tlen = tbuf.length
                     txt.Value = v;
                     break
                 case DataType.hex_len:
                     tbuf = coder.hex_len.encode(v, x.Len, x.LE)
-                    tlen = tbuf.length + x.Len
+                    tlen = tbuf.length
                     txt.Value = v;
                     break
                 case DataType.buffer_len:
                     tbuf = coder.buffer_len.encode(v, x.Len, x.LE)
-                    tlen = tbuf.length + x.Len
+                    tlen = tbuf.length
                     txt.Value = v;
                     break
             }
+            txt.End = i + tlen
             i += tlen;
             if (x.Reverse) {
                 tbuf = tbuf.reverse()
@@ -719,13 +726,16 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
             // if ('Data,Len'.split(',').includes(x.Code)) { debugger }
             switch (x.Type) {
                 case DataType.hex_len:
-                    obj[x.Code] = hex_len_decode(buf.slice(i), x.Len, x.LE)
+                    txt.Value = obj[x.Code] = hex_len_decode(buf.slice(i), x.Len, x.LE)
+                    tlen = x.Len + (obj[x.Code].length / 2)
                     break;
                 case DataType.ascii_len:
-                    obj[x.Code] = ascii_len_decode(buf.slice(i), x.Len, x.LE)
+                    txt.Value = obj[x.Code] = ascii_len_decode(buf.slice(i), x.Len, x.LE)
+                    tlen = x.Len + obj[x.Code].length
                     break;
-                case DataType.ascii_len:
-                    obj[x.Code] = buffer_len_decode(buf.slice(i), x.Len, x.LE)
+                case DataType.buffer_len:
+                    txt.Value = obj[x.Code] = buffer_len_decode(buf.slice(i), x.Len, x.LE)
+                    tlen = x.Len + obj[x.Code].length
                     break;
                 case DataType.buffer:
                     if (x.Buffer) {
