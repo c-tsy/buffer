@@ -868,7 +868,7 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
                     set(obj, x.Code, v)
                     break;
                 case DataType.int:
-                    v = coder.uint.decode(buf, x.Len, i, x.LE)
+                    v = coder.int.decode(buf, x.Len, i, x.LE)
                     if (x.Unit && x.Unit != 1 && x.Unit != 0) {
                         v = math.multiply(v, math.bignumber(x.Unit))
                     }
