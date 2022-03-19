@@ -647,14 +647,14 @@ export function buffer_encode(obj: any, conf: Config[]): { buf: Buffer, explain:
                     break;
                 case DataType.uint:
                     if (x.Unit && x.Unit != 1 && v != 0 && x.Unit != 0) {
-                        v = math.divide(v, math.bignumber(x.Unit))
+                        v = Number(math.divide(v, math.bignumber(x.Unit)))
                     }
                     tbuf = coder.uint.encode(v, x.Len, x.LE);
                     txt.Value = v;
                     break;
                 case DataType.int:
                     if (x.Unit && x.Unit != 1 && v != 0 && x.Unit != 0) {
-                        v = math.divide(v, math.bignumber(x.Unit))
+                        v = Number(math.divide(v, math.bignumber(x.Unit)))
                     }
                     tbuf = coder.int.encode(v, x.Len, x.LE);
                     txt.Value = v;
@@ -862,7 +862,7 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
                     // v = coder.uint.decode(buf, x.Len, i) * (x.Unit || 1);
                     v = coder.uint.decode(buf, x.Len, i, x.LE)
                     if (x.Unit && x.Unit != 1 && x.Unit != 0) {
-                        v = math.multiply(v, math.bignumber(x.Unit))
+                        v = Number(math.multiply(v, math.bignumber(x.Unit)))
                     }
                     txt.Value = v;
                     set(obj, x.Code, v)
@@ -870,7 +870,7 @@ export function buffer_decode(buf: Buffer, obj: any, conf: Config[]): { obj: any
                 case DataType.int:
                     v = coder.int.decode(buf, x.Len, i, x.LE)
                     if (x.Unit && x.Unit != 1 && x.Unit != 0) {
-                        v = math.multiply(v, math.bignumber(x.Unit))
+                        v = Number(math.multiply(v, math.bignumber(x.Unit)))
                     }
                     txt.Value = v;
                     set(obj, x.Code, v)
