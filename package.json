@@ -22,6 +22,6 @@
   "dependencies": {
     "buffer": "*",
     "lodash": "*",
-    "mathjs": "^8.1.0"
+    "mathjs": "^15.2.0"
   }
 }
